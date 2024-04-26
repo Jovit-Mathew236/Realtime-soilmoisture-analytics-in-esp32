@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed Size Bar Graph</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="scripts/auth.js"></script>
+    <script type="module" src="/script.js">
+
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <div>
+            <h1>Irrigation Dashboard</h1>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Humidity</h5>
+                        <i class="fa fa-tint" aria-hidden="true"></i>
+                        <span id="humidityValue"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Times watered</h5>
+                        <i class="fa fa-tint" aria-hidden="true"></i>
+                        <span id="timesWateredValue"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h5 class="card-header">Water Consumption Chart</h5>
+            <div class="card-body">
+                <canvas id="barChart" width="500" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <button id="logoutButton" class="logoutbtn">Logout</button>
+
+    <!-- Other scripts and dependencies -->
+</body>
+
+</html>
