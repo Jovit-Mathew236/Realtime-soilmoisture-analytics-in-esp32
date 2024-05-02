@@ -1,18 +1,14 @@
 #include <Arduino.h>
-#ifdef ESP32
 #include <WiFi.h>
 #include <Firebase_ESP_Client.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
-#endif
 
 //Provide the token generation process info.
 #include "addons/TokenHelper.h"
 //Provide the RTDB payload printing info and other helper functions.
 #include "addons/RTDBHelper.h"
 
-const char* ssid = "VALIAMANGALAM-4G";
-const char* password = "mathew1112";
+const char* ssid = "wifi";
+const char* password = "ashin123";
 #define DATABASE_URL "iot-soil-moisture-a01d1-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define API_KEY "AIzaSyDm_4T2Ipv4CJio1sx1-iXlKbmgr-QqB4I"
 
@@ -26,7 +22,6 @@ bool ledOn = false;     // Flag to track LED state
 const int MAX_READINGS = 5; // Maximum number of moisture readings to store per month
 float moistureReadings[MAX_READINGS]; // Array to store moisture readings
 
-#ifdef ESP32
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
@@ -35,6 +30,7 @@ int count = 0;
 bool signupOK = false;
 
 void setup() {
+  pinMode(ledPin, OUTPUT);
   Serial.begin(115200);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to Wi-Fi");
@@ -103,43 +99,3 @@ void loop() {
     }
   }
 }
-#else
-void setup() {
-  Serial.begin(9600);
-  pinMode(ledPin, OUTPUT);
-
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println(WiFi.localIP());
-
-  // Configure NTP time synchronization
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-}
-
-void loop() {
-  int sensor_analog = analogRead(soilPin);
-  Serial.print("Raw Analog Reading: ");
-  float moisturePercentage = (100.0 - ((float)sensor_analog / 4095.0) * 100.0);
-  Serial.println(moisturePercentage);
-  // Shift the existing moisture readings to the right
-  for (int i = MAX_READINGS - 1; i > 0; i--) {
-    moistureReadings[i] = moistureReadings[i - 1];
-  }
-  // Store the latest moisture reading
-  moistureReadings[0] = moisturePercentage;
-
-  if (moisturePercentage > 10.0 && !ledOn) {
-    digitalWrite(ledPin, HIGH); // Turn on LED if moisture is greater than 50%
-    ledCount++; // Increment LED count
-    ledOn = true; // Set LED state flag
-  } else if (moisturePercentage < 5.0 && ledOn) {
-    digitalWrite(ledPin, LOW);  // Turn off LED if moisture is not greater than 50%
-    ledOn = false; // Reset LED state flag
-  }
-
-  delay(1000);
-}
-#endif
