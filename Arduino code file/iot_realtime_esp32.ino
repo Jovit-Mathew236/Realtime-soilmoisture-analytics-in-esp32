@@ -6,8 +6,8 @@
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
 
-const char* ssid = "VALIAMANGALAM-4G";
-const char* password = "mathew1112";
+const char* ssid = "<your ssid>";
+const char* password = "<your wifi password>";
 
 #define DATABASE_URL "iot-soil-moisture-a01d1-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define API_KEY "AIzaSyDm_4T2Ipv4CJio1sx1-iXlKbmgr-QqB4I"
