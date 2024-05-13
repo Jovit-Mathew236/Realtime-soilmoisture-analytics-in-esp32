@@ -1,14 +1,14 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <Firebase_ESP_Client.h>
+#include <TimeLib.h>
 
-//Provide the token generation process info.
 #include "addons/TokenHelper.h"
-//Provide the RTDB payload printing info and other helper functions.
 #include "addons/RTDBHelper.h"
 
-const char* ssid = "wifi";
-const char* password = "ashin123";
+const char* ssid = "VALIAMANGALAM-4G";
+const char* password = "mathew1112";
+
 #define DATABASE_URL "iot-soil-moisture-a01d1-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define API_KEY "AIzaSyDm_4T2Ipv4CJio1sx1-iXlKbmgr-QqB4I"
 
@@ -29,7 +29,15 @@ unsigned long sendDataPrevMillis = 0;
 int count = 0;
 bool signupOK = false;
 
+void setTime() {
+  configTime(0, 0, "pool.ntp.org"); // Set the time zone and NTP server
+  while (!time(nullptr)) { // Wait until time is set
+    delay(1000);
+  }
+}
+
 void setup() {
+  setTime(); // Set the current time
   pinMode(ledPin, OUTPUT);
   Serial.begin(115200);
   WiFi.begin(ssid, password);
@@ -63,7 +71,7 @@ void setup() {
 
 void loop() {
   unsigned long currentMillis = millis(); // Declare currentMillis variable
-  if (Firebase.ready() && signupOK && (currentMillis - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
+  if (Firebase.ready() && signupOK && (currentMillis - sendDataPrevMillis > 10000 || sendDataPrevMillis == 0)) {
     sendDataPrevMillis = currentMillis;
 
     int sensor_analog = analogRead(soilPin);
@@ -71,31 +79,51 @@ void loop() {
     float moisturePercentage = (100.0 - ((float)sensor_analog / 4095.0) * 100.0);
     Serial.println(moisturePercentage);
 
-    if (Firebase.RTDB.setFloat(&fbdo, "moisturePercentage", moisturePercentage)) {
+    // Get current time
+    time_t now = time(nullptr);
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+
+    // Build the path with year and month
+ 
+
+    // Turn LED on/off based on moisture level
+    if (moisturePercentage > 10.0 && !ledOn) {
+      digitalWrite(ledPin, HIGH);
+      ledOn = true;
+      ledCount++; // Increment LED count
+    } else if (moisturePercentage < 5.0 && ledOn) {
+      digitalWrite(ledPin, LOW);
+      ledOn = false;
+    }
+
+
+   char path[50];
+   sprintf(path, "/", timeinfo.tm_year + 1900, monthShortStr(timeinfo.tm_mon + 1));
+
+    // Send moisture percentage to Firebase
+    if (Firebase.RTDB.setFloat(&fbdo, String(path) + "moisturePercentage", moisturePercentage) && Firebase.RTDB.setFloat(&fbdo, String(path) + "MotorON", ledCount)) {
       Serial.println("PASSED: Moisture Percentage");
-      Serial.println("PATH: " + fbdo.dataPath());
-      Serial.println("TYPE: " + fbdo.dataType());
     } else {
       Serial.println("FAILED: Moisture Percentage");
       Serial.println("REASON: " + fbdo.errorReason());
     }
-
-    if (Firebase.RTDB.setInt(&fbdo, "ledCount", ledCount)) {
-      Serial.println("PASSED: LED Count");
-      Serial.println("PATH: " + fbdo.dataPath());
-      Serial.println("TYPE: " + fbdo.dataType());
+    // Store data in the 'data' document as a map
+    char dataPath[50];
+    sprintf(dataPath, "/data/%04d/%s", timeinfo.tm_year + 1900, monthShortStr(timeinfo.tm_mon + 1));
+    FirebaseJson json;
+    json.add("MotorON", ledCount);
+    json.add("averageMositure", moisturePercentage);
+    json.add("date", String(timeinfo.tm_mday) + "-" + monthShortStr(timeinfo.tm_mon + 1) + "-" + String(timeinfo.tm_year + 1900));
+    if (Firebase.RTDB.setJSON(&fbdo, dataPath, &json)) {
+      Serial.println("Data stored in 'data' document");
     } else {
-      Serial.println("FAILED: LED Count");
-      Serial.println("REASON: " + fbdo.errorReason());
+      Serial.println("Failed to store data in 'data' document");
     }
 
-    if (moisturePercentage > 10.0 && !ledOn) {
-      digitalWrite(ledPin, HIGH); // Turn on LED if moisture is greater than 50%
-      ledCount++; // Increment LED count
-      ledOn = true; // Set LED state flag
-    } else if (moisturePercentage < 5.0 && ledOn) {
-      digitalWrite(ledPin, LOW);  // Turn off LED if moisture is not greater than 50%
-      ledOn = false; // Reset LED state flag
-    }
+   
+
   }
 }
+
+

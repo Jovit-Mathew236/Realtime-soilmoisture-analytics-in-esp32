@@ -1,9 +1,11 @@
+// Firebase imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-app.js";
 import {
   getFirestore,
   collection,
-  addDoc,
-  Timestamp,
+  doc,
+  setDoc,
+  getDoc,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-firestore.js";
 import {
@@ -14,6 +16,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-database.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/9.12.1/firebase-auth.js";
 
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDm_4T2Ipv4CJio1sx1-iXlKbmgr-QqB4I",
   authDomain: "iot-soil-moisture-a01d1.firebaseapp.com",
@@ -30,58 +33,81 @@ const app = initializeApp(firebaseConfig);
 const firestore = getFirestore(app);
 const database = getDatabase(app);
 const auth = getAuth(app);
-// Function to save data to Firestore
-async function saveDataToFirestore(timestamp, watered) {
+
+// Merge data function
+function mergeData(existingData, newData) {
+  for (const [month, monthEntry] of Object.entries(newData)) {
+    if (existingData[month]) {
+      for (const [day, dayEntry] of Object.entries(monthEntry)) {
+        const newMoistureAverage =
+          (dayEntry.moistureAverage +
+            existingData[month][day].moistureAverage) /
+          2;
+        existingData[month][day] = {
+          ...existingData[month][day],
+          ...dayEntry,
+          moistureAverage: newMoistureAverage,
+        };
+      }
+    } else {
+      existingData[month] = { ...monthEntry };
+    }
+  }
+  return existingData;
+}
+
+// Fetch data from Firebase and update chart
+async function fetchDataAndUpdateChart(selectedYear) {
   try {
-    const formattedTimestamp = Timestamp.fromMillis(timestamp);
-    await addDoc(collection(firestore, "watering_events"), {
-      timestamp: formattedTimestamp,
-      watered: watered,
-    });
-    console.log("Data saved to Firestore");
+    const snapshot = await get(ref(database, `data/${selectedYear}`));
+    if (!snapshot.exists()) {
+      console.log("No data available");
+      return;
+    }
+    const firebaseData = snapshot.val();
+
+    for (const [month, monthData] of Object.entries(firebaseData)) {
+      const dayEntry = {
+        day: parseInt(monthData.date.slice(0, 2)),
+        month: month,
+        year: parseInt(selectedYear),
+        watered: monthData.MotorON || 0,
+        moistureAverage: monthData.averageMositure || 0,
+      };
+
+      const monthEntry = { [parseInt(monthData.date.slice(0, 2))]: dayEntry };
+
+      const docRef = doc(firestore, "watering_data", selectedYear);
+      const docSnapshot = await getDoc(docRef);
+      const existingData = docSnapshot.exists() ? docSnapshot.data() : {};
+
+      const mergedData = mergeData(existingData, { [month]: monthEntry });
+      await setDoc(docRef, mergedData);
+
+      console.log(
+        `Document ${selectedYear}/${month} successfully updated in Firestore`
+      );
+      updateBarChart(Object.values(mergedData[month]));
+    }
   } catch (error) {
-    console.error("Error saving data to Firestore:", error);
+    console.error("Error fetching or updating data:", error);
   }
 }
 
-// Function to fetch data from Firebase and update the chart
-function fetchDataAndUpdateChart() {
-  const dbRef = ref(database, "watering_events");
-
-  get(dbRef)
-    .then((snapshot) => {
-      if (snapshot.exists()) {
-        const firebaseData = snapshot.val();
-        const formattedData = Object.entries(firebaseData).map(
-          ([key, value]) => ({
-            date: new Date(parseInt(key)),
-            amount: value,
-          })
-        );
-        updateBarChart(formattedData);
-      } else {
-        console.log("No data available");
-      }
-    })
-    .catch((error) => {
-      console.error("Error fetching data:", error);
-    });
-}
-
-// Fetch data and update chart initially
-fetchDataAndUpdateChart();
-
-// Set up listener to update chart in real-time
-onValue(ref(database, "data"), (snapshot) => {
-  const firebaseData = snapshot.val();
-  const formattedData = Object.keys(firebaseData).map((key) => ({
-    date: new Date(key),
-    amount: firebaseData[key],
-  }));
-  updateBarChart(formattedData);
+// Event listener for year input change
+const yearInput = document.getElementById("yearInput");
+yearInput.addEventListener("change", () => {
+  const selectedYear = yearInput.value;
+  console.log(selectedYear);
+  fetchDataAndUpdateChart(selectedYear);
 });
 
-// Function to update humidity and times watered values in the HTML
+window.onload = function () {
+  const selectedYear = now.getFullYear().toString();
+  yearInput.value = selectedYear;
+  fetchDataAndUpdateChart(selectedYear);
+};
+// Update values function
 function updateValues(humidity, amount) {
   document.getElementById("humidityValue").innerText = `Humidity: ${humidity}`;
   document.getElementById(
@@ -89,32 +115,43 @@ function updateValues(humidity, amount) {
   ).innerText = `Times Watered: ${amount}`;
 }
 
-// Set up listener to update values in real-time
+// Firebase data listener
 onValue(ref(database, "/"), (snapshot) => {
   const data = snapshot.val();
   console.log(data);
-  const humidity = data.moisturePercentage || 0; // Assuming humidity is stored in the "humidity" field
-  const timesWatered = data.ledCount || 0; // Assuming times watered is stored in the "timesWatered" field
+  fetchDataAndUpdateChart("2024");
+  const humidity = data.moisturePercentage || 0;
+  const timesWatered = data.MotorON || 0;
   updateValues(humidity, timesWatered);
-
-  // Call saveDataToFirestore to save the ledCount to Firestore
-  saveDataToFirestore(Date.now(), timesWatered);
 });
 
-// Function to update the bar chart
+// Chart update function
 function updateBarChart(data) {
-  console.log(data);
+  if (!data || data.length === 0) {
+    console.log("No data available");
+    return;
+  }
+  const labels = data.map((entry) => `${entry.month} ${entry.day}`);
+  const moistureValues = data.map((entry) => entry.moistureAverage);
+  const amountValues = data.map((entry) => entry.watered);
   var ctx = document.getElementById("barChart").getContext("2d");
-  var barChart = new Chart(ctx, {
+  barChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: data.map((entry) => entry.date), // Format date as per requirement (e.g., entry.date.getMonth() + 1 + '-' + entry.date.getFullYear()
+      labels: labels,
       datasets: [
         {
-          label: "Water Consumption",
-          data: data.map((entry) => entry.amount),
+          label: "Average Moisture",
+          data: moistureValues,
           backgroundColor: "rgba(54, 162, 235, 0.5)",
           borderColor: "rgba(54, 162, 235, 1)",
+          borderWidth: 1,
+        },
+        {
+          label: "Amount",
+          data: amountValues,
+          backgroundColor: "rgba(255, 99, 132, 0.5)",
+          borderColor: "rgba(255, 99, 132, 1)",
           borderWidth: 1,
         },
       ],
@@ -133,34 +170,8 @@ function updateBarChart(data) {
   });
 }
 
-// Real-time listener for changes in Firestore collection
-onSnapshot(collection(firestore, "watering_events"), (snapshot) => {
-  const data = snapshot.docs.map((doc) => doc.data());
-  // Process data to get the number of times watered in each month
-  const monthlyCounts = data.reduce((acc, curr) => {
-    const date = curr.timestamp.toDate();
-    const monthYear = `${date.getMonth() + 1}-${date.getFullYear()}`;
-    acc[monthYear] = (acc[monthYear] || 0) + 1;
-    return acc;
-  }, {});
-  // Get the total amount of watering events
-  const totalAmount = Object.entries(monthlyCounts).reduce(
-    (acc, [_, amount]) => acc + amount,
-    0
-  );
-  // Update chart with monthly watering counts
-  console.log(totalAmount);
-  updateBarChart(
-    Object.entries(monthlyCounts).map(([date, amount]) => ({
-      date: new Date(date),
-      amount,
-    }))
-  );
-  // Update the times watered value with the total amount
-  updateValues("Current Humidity Value", totalAmount);
-});
+// Logout button click handler
 const logoutbtn = document.getElementById("logoutButton");
-console.log(logoutbtn);
 logoutbtn.onclick = function () {
   console.log("logout");
   localStorage.removeItem("name");
