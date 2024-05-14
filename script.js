@@ -36,13 +36,14 @@ const auth = getAuth(app);
 
 // Merge data function
 function mergeData(existingData, newData) {
+  console.log(existingData, newData);
   for (const [month, monthEntry] of Object.entries(newData)) {
     if (existingData[month]) {
       for (const [day, dayEntry] of Object.entries(monthEntry)) {
+        // console.log(dayEntry, existingData, day);
         const newMoistureAverage =
-          (dayEntry.moistureAverage +
-            existingData[month][day].moistureAverage) /
-          2;
+          dayEntry.moistureAverage +
+            existingData[month][day]?.moistureAverage || 0 / 2;
         existingData[month][day] = {
           ...existingData[month][day],
           ...dayEntry,
