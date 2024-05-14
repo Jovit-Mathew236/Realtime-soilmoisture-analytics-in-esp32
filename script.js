@@ -40,15 +40,20 @@ function mergeData(existingData, newData) {
   for (const [month, monthEntry] of Object.entries(newData)) {
     if (existingData[month]) {
       for (const [day, dayEntry] of Object.entries(monthEntry)) {
-        // console.log(dayEntry, existingData, day);
-        const newMoistureAverage =
-          dayEntry.moistureAverage +
-            existingData[month][day]?.moistureAverage || 0 / 2;
-        existingData[month][day] = {
-          ...existingData[month][day],
-          ...dayEntry,
-          moistureAverage: newMoistureAverage,
-        };
+        if (existingData[month][day]) {
+          // Check if day exists in existingData
+          const newMoistureAverage =
+            (dayEntry.moistureAverage +
+              existingData[month][day].moistureAverage) /
+            2;
+          existingData[month][day] = {
+            ...existingData[month][day],
+            ...dayEntry,
+            moistureAverage: newMoistureAverage,
+          };
+        } else {
+          existingData[month][day] = { ...dayEntry };
+        }
       }
     } else {
       existingData[month] = { ...monthEntry };
